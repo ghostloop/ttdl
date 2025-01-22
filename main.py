@@ -25,7 +25,7 @@ from playwright.sync_api import sync_playwright, Error as PlaywrightError
 
 class DatabaseManager:
     def __init__(self, db_path: Union[str, Path]):
-        self.db_path = str(db_path)  # ensure string for sqlite
+        self.db_path = str(db_path)
         self._init_db()
 
     def _init_db(self):
@@ -239,7 +239,6 @@ class TikTokScraper:
         self.config = config
         self.db = db
 
-        # We'll just create the downloads folder if it doesn't exist
         self.config.home_dir.mkdir(parents=True, exist_ok=True)
 
     def run_all_users(self) -> None:
@@ -367,7 +366,6 @@ class TikTokDL:
             current_date = datetime.now().strftime(self.date_format)
             self._ifprinter(f"Scraping started at {current_date}")
 
-        # Make a folder for this user in downloads
         self.user_folder.mkdir(parents=True, exist_ok=True)
 
         # If we don’t have a secuid in DB, try to get it
@@ -378,7 +376,6 @@ class TikTokDL:
             if self.secuid is None:
                 self._ifprinter("Could not find Secondary User ID.")
                 return False
-            # update DB with new secuid
             self._update_user_secuid(self.secuid)
 
         # Possibly re-check if user renamed?
@@ -388,7 +385,7 @@ class TikTokDL:
                 f"Secondary ID indicates {self.original_user_name} was renamed to {new_name}"
             )
             self.user_name = new_name
-            self._add_alias(new_name)  # store alias in DB
+            self._add_alias(new_name)
 
         # Possibly re-assign user_folder based on new_name
         self.user_folder = self.home_dir.joinpath(self.user_name)
@@ -670,7 +667,6 @@ class TikTokDL:
             error_code = embed_dict.get("errorCode")
             if error_code:
                 self._ifprinter(f"Embed error code {error_code}")
-                # fallback
                 return self._fallback_glvil()
             return None
         else:
