@@ -36,7 +36,7 @@ To add a user to the database:
 
 ```python main.py add <username>```
 
-To run the script for a single user:
+To run the script for a single user (be sure to have the user added to the database first):
 
 ```python main.py run --user <username>```
 
