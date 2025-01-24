@@ -35,40 +35,40 @@ class DatabaseManager:
 
         c.execute(
             """
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            unique_name TEXT NOT NULL,
-            secuid TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_scrape DATETIME
-        );
-        """
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                unique_name TEXT NOT NULL,
+                secuid TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_scrape DATETIME
+            );
+            """
         )
 
         c.execute(
             """
-        CREATE TABLE IF NOT EXISTS aliases (
-            alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            alias_name TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(user_id)
-                ON DELETE CASCADE
-        );
-        """
+            CREATE TABLE IF NOT EXISTS aliases (
+                alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                alias_name TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+                    ON DELETE CASCADE
+            );
+            """
         )
 
         c.execute(
             """
-        CREATE TABLE IF NOT EXISTS videos (
-            video_id TEXT PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            status TEXT NOT NULL,        -- 'complete' / 'failed' / 'pending'
-            downloaded_at DATETIME,
-            local_path TEXT,
-            FOREIGN KEY(user_id) REFERENCES users(user_id)
-                ON DELETE CASCADE
-        );
-        """
+            CREATE TABLE IF NOT EXISTS videos (
+                video_id TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                status TEXT NOT NULL,        -- 'complete' / 'failed' / 'pending'
+                downloaded_at DATETIME,
+                local_path TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+                    ON DELETE CASCADE
+            );
+            """
         )
 
         conn.commit()
@@ -142,7 +142,7 @@ class DatabaseManager:
             """
             SELECT COUNT(*) FROM aliases
             WHERE user_id = ? AND alias_name = ?
-        """,
+            """,
             (user_id, alias),
         )
         (count,) = c.fetchone()
@@ -170,27 +170,24 @@ class DatabaseManager:
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
-        # Check if row already exists
         c.execute("SELECT video_id FROM videos WHERE video_id = ?", (video_id,))
         existing = c.fetchone()
 
         if not existing:
-            # Insert
             c.execute(
                 """
                 INSERT INTO videos (video_id, user_id, status, local_path, downloaded_at)
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """,
+                """,
                 (video_id, user_id, status, local_path),
             )
         else:
-            # Update
             c.execute(
                 """
                 UPDATE videos
                 SET status = ?, downloaded_at = CURRENT_TIMESTAMP, local_path = ?
                 WHERE video_id = ?
-            """,
+                """,
                 (status, local_path, video_id),
             )
 
@@ -217,7 +214,6 @@ class TikTokScraperConfig:
         print_outputs: bool = True,
         retry_failed: bool = False,
     ):
-        # If no home_dir is provided, we use `script_dir / "downloads"`
         if home_dir is None:
             self.home_dir = Path(__file__).parent / "downloads"
         else:
@@ -405,7 +401,7 @@ class TikTokDL:
         # Attempt to get *latest* IDs from embed
         latest_video_id_list = self._get_latest_video_id_list()
         if latest_video_id_list is None or not latest_video_id_list:
-            self._ifprinter(f"No new videos found from embed approach, using fallback.")
+            self._ifprinter("No new videos found from embed approach, using fallback.")
             return False
 
         # If the newest is already in complete or failed, probably no new videos
@@ -414,7 +410,7 @@ class TikTokDL:
             self._ifprinter(f"No new videos for {self.user_name}")
             return True
 
-        # If we haven't recognized the newest yet, let's either do partial or full fetch
+        # If we haven't recognized the newest yet, check the list for recognized IDs:
         early_video_id_list = []
         download_now = False
         for vid_id in latest_video_id_list:
@@ -796,7 +792,6 @@ class TikTokDL:
         self,
         video_id_list: List[str],
         print_number_of_files_saved: bool,
-        save_history: bool = True,
     ) -> None:
         """Download videos/images for given list of video IDs."""
         self.loop = asyncio.new_event_loop()
@@ -1018,28 +1013,33 @@ class TikTokDL:
         return aiohttp.ClientSession(connector=connector, timeout=timeout)
 
 
-#########################################################
-#                Command-Line Interface                 #
-#########################################################
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "TikTok Scraper with SQLite-based metadata. "
+            "Downloads go to script_dir/downloads; DB file is script_dir/ttdl.db"
+        )
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    add_parser = subparsers.add_parser("add", help="Add user(s) to the DB")
+    add_parser.add_argument("usernames", nargs="+", help="One or more usernames")
+
+    run_parser = subparsers.add_parser("run", help="Scrape user(s)")
+    run_parser.add_argument(
+        "--user", "-u", type=str, help="Scrape a single user instead of all."
+    )
+
+    add_run_parser = subparsers.add_parser(
+        "add-run", help="Add user(s), then run them immediately."
+    )
+    add_run_parser.add_argument("usernames", nargs="+", help="One or more usernames")
+
+    return parser.parse_args()
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="TikTok Scraper with SQLite-based metadata. "
-        "Downloads go to script_dir/downloads; DB file is script_dir/ttdl.db"
-    )
-    subparsers = parser.add_subparsers(dest="command", help="Commands")
-
-    add_parser = subparsers.add_parser("add", help="Add user(s) to the DB.")
-    add_parser.add_argument("usernames", nargs="+", help="One or more usernames")
-
-    run_parser = subparsers.add_parser("run", help="Scrape user(s).")
-    run_parser.add_argument(
-        "--user", type=str, help="Scrape a single user instead of all."
-    )
-
-    args = parser.parse_args()
-
+    args = parse_args()
     script_dir = Path(__file__).parent
     db_path = script_dir / "ttdl.db"
     db = DatabaseManager(db_path)
@@ -1065,8 +1065,19 @@ def main():
             scraper.run_single_user(args.user)
         else:
             scraper.run_all_users()
+
+    elif args.command == "add-run":
+        for username in args.usernames:
+            existing = db.get_user_by_name(username)
+            if not existing:
+                user_id = db.create_user(username)
+                print(f"Added user '{username}' (id: {user_id}).")
+            else:
+                user_id = existing["user_id"]
+                print(f"'{username}' is already in DB (id: {user_id}).")
+            scraper.run_single_user(username)
     else:
-        parser.print_help()
+        print("Unknown command.")
 
 
 if __name__ == "__main__":
